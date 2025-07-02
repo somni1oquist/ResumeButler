@@ -2,6 +2,7 @@ import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion, AzureChatPromptExecutionSettings
 from semantic_kernel.functions import KernelArguments
 from semantic_kernel.prompt_template import PromptTemplateConfig, HandlebarsPromptTemplate
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 from utils import parse_resume
 from dotenv import load_dotenv
 from user_profile import UserProfile
@@ -26,13 +27,13 @@ def get_kernel() -> tuple[sk.Kernel, AzureChatPromptExecutionSettings]:
     request_settings = AzureChatPromptExecutionSettings(service_id="az_resume_service")
     return _kernel, request_settings
 
-def get_basic_args(user_profile: UserProfile) -> KernelArguments | None:
+def get_basic_args(user_profile: UserProfile, resume_file: UploadedFile | None=None) -> KernelArguments | None:
     """Get KernelArguments from UserProfile"""
     try:
-        user_profile.resume = parse_resume(user_profile.resume_file)
-        user_profile.jd = user_profile.jd
+        if resume_file:
+            user_profile.resume = parse_resume(resume_file)
     except (FileNotFoundError, IOError):
-        print(f"Error loading resume or job description. Please check the files.")
+        print(f"Error loading resume. Please check the file.")
         return None
 
     arguments = KernelArguments(**user_profile.__dict__)
