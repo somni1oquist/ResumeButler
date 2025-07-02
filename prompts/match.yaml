@@ -1,0 +1,50 @@
+name: ReviewPrompt
+template: |
+  Resume:
+  {{resume}}
+
+  Job Description:
+  {{jd}}
+
+  1. Give a match percentage from 0 to 100.
+  2. Assess based on metrics including:
+     - Skills
+     - Keywords
+     - Experience Fit
+     - Education
+  3. Highlight main skills that match and those that are missing.
+  4. Write a short bullet points summary for the recruiter.
+  5. Response format in Markdown:
+    Match: [number]%
+    Matched Skills:...
+    Missing Skills:...
+    Matched Keywords:...
+    Missing Keywords:...
+    Experience Fit:...
+    Education Fit:...
+    Summary:
+      - [bullet point summary for the recruiter]
+
+template_format: handlebars
+description: |
+  This template is used to evaluate the match between a candidate's resume and a job description.
+  It provides a match percentage, highlights matched and missing skills, and includes a summary for the recruiter.
+
+input_variables:
+  - name: resume
+    description: The candidate's resume.
+    type: string
+    is_required: true
+  - name: jd
+    description: The job description.
+    type: string
+    is_required: true
+output_variables:
+  - description: The match percentage, matched and missing skills, matched and missing keywords, and a summary for the recruiter.
+execution_settings:
+  azure_openai:
+    model: gpt-4o
+    max_tokens: 1000
+    temperature: 0.2
+    function_choice_behavior:
+      type: auto
