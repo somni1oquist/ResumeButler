@@ -1,0 +1,19 @@
+# Resume files
+*.docx
+*.doc
+*.pdf
+*.txt
+
+# Python files
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# System files
+*.env
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
