@@ -1,0 +1,12 @@
+README.md
+*.env
+*.log
+*.tmp
+.vscode/
+.git/
+.gitignore
+__pycache__/
+*.docx
+*.pdf
+.venv/
+.vscode/
