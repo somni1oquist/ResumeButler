@@ -26,16 +26,11 @@ def get_kernel() -> tuple[sk.Kernel, AzureChatPromptExecutionSettings]:
     request_settings = AzureChatPromptExecutionSettings(service_id="az_resume_service")
     return _kernel, request_settings
 
-def get_args(user_profile: UserProfile) -> KernelArguments | None:
-    resume_path = "CV.pdf"
-    job_path = "jd.txt"
+def get_basic_args(user_profile: UserProfile) -> KernelArguments | None:
+    """Get KernelArguments from UserProfile"""
     try:
-        if not user_profile.resume:
-            with open(resume_path, "r") as resume_file:
-                user_profile.resume = parse_resume(resume_file)
-        if not user_profile.jd:
-            with open(job_path, "r") as jd_file:
-                user_profile.jd = jd_file.read()
+        user_profile.resume = parse_resume(user_profile.resume_file)
+        user_profile.jd = user_profile.jd
     except (FileNotFoundError, IOError):
         print(f"Error loading resume or job description. Please check the files.")
         return None

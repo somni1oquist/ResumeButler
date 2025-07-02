@@ -31,7 +31,7 @@ This system combines resume-job matching analysis with interactive HR consultati
 
 - `python -m venv .venv`
 - Activate virtual environment
-- `pip install -r requirements` OR `pip install -U semantic-kernel dotenv pymupdf4llm docx2txt pyyaml`
+- `pip install -r requirements.txt` OR `pip install -U semantic-kernel dotenv pymupdf4llm docx2txt pyyaml`
 - Create `.env` file:
 ```
 GLOBAL_LLM_SERVICE="azure_openai"
