@@ -14,7 +14,7 @@ template: |
      - Education
   3. Highlight main skills that match and those that are missing.
   4. Write a short bullet points summary for the recruiter.
-  5. Response format in Markdown:
+  5. Response format in Markdown without code block notation i.e. ```markdown:
     Match: [number]%
     Matched Skills:...
     Missing Skills:...
