@@ -30,7 +30,7 @@ This system combines resume-job matching analysis with interactive HR consultati
 ## Setup
 
 - `python -m venv .venv`
-- Activate virtual environment
+- `source .venv/bin/activate` OR `.\.venv\Scripts\activate`
 - `pip install -r requirements.txt`
 - Create `.env` file:
 ```
