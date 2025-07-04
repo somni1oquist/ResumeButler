@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from azure.ai.documentintelligence.models import AnalyzeResult
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import os
+import tempfile
 from dotenv import load_dotenv
 
 
@@ -205,9 +206,10 @@ class DocxParser(DocumentParserStrategy):
             import docx2txt
             
             file.seek(0)
-            content = docx2txt.process(file)
-            if not content.strip():
-                raise ValueError("Failed to extract text from DOCX")
+            with tempfile.NamedTemporaryFile(delete=True, suffix=".docx") as tmp:
+                tmp.write(file.read())
+                tmp.flush()
+                content = docx2txt.process(tmp.name)
             return content
             
         except Exception as e:
