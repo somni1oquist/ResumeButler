@@ -9,12 +9,15 @@ This system combines resume-job matching analysis with interactive HR consultati
 - Skills gap analysis
 - Match percentage scoring
 - Keyword extraction and comparison
+- Enhanced document structure parsing with Azure Document Intelligence
+- Automatic fallback to basic parsing methods when Azure services aren't available
 
 ### 🤖 Recruiter AI Consultation
 - Interactive career guidance
 - Interview preparation tips
 - Resume improvement suggestions
 - Personalised feedback
+- Improved context understanding from structured document parsing
 
 ## Files Overview
 
@@ -25,7 +28,7 @@ This system combines resume-job matching analysis with interactive HR consultati
 
 ### Python Scripts
 - **`match.py`**: Match resume against given job description
-- **`utils.py`**: Resume parsing utilities
+- **`document_parser.py`**: Advanced document parsing with Azure Document Intelligence integration
 
 ## Setup
 
@@ -38,7 +41,13 @@ GLOBAL_LLM_SERVICE="azure_openai"
 AZURE_OPENAI_API_KEY="..."
 AZURE_OPENAI_ENDPOINT="https://..."
 AZURE_OPENAI_DEPLOYMENT_NAME="..."
+
+# Optional: For enhanced document parsing with Azure Document Intelligence
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT="https://..."
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY="..."
 ```
+
+**Note:** Azure Document Intelligence integration provides enhanced document structure parsing. If not configured, the system will fall back to basic PDF/DOCX parsing methods.
 
 ## Quick Start
 
