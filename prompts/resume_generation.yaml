@@ -1,0 +1,140 @@
+name: ResumeGenerationPrompt
+template: |
+  You are a professional resume writer creating a comprehensive resume. Generate a well-structured resume based on the information provided.
+  
+  {{#if existing_resume}}
+  EXISTING RESUME TO REWRITE:
+  {{existing_resume}}
+  {{/if}}
+  
+  {{#if user_profile}}
+  USER PROFILE INFORMATION:
+  {{#if user_profile.name}}Name: {{user_profile.name}}{{/if}}
+  {{#if user_profile.email}}Email: {{user_profile.email}}{{/if}}
+  {{#if user_profile.phone}}Phone: {{user_profile.phone}}{{/if}}
+  {{#if user_profile.location}}Location: {{user_profile.location}}{{/if}}
+  {{#if user_profile.linkedin}}LinkedIn: {{user_profile.linkedin}}{{/if}}
+  {{#if user_profile.summary}}Professional Summary: {{user_profile.summary}}{{/if}}
+  
+  {{#if user_profile.experience}}
+  EXPERIENCE:
+  {{user_profile.experience}}
+  {{/if}}
+  
+  {{#if user_profile.education}}
+  EDUCATION:
+  {{user_profile.education}}
+  {{/if}}
+  
+  {{#if user_profile.skills}}
+  SKILLS:
+  {{user_profile.skills}}
+  {{/if}}
+  
+  {{#if user_profile.certifications}}
+  CERTIFICATIONS:
+  {{user_profile.certifications}}
+  {{/if}}
+  
+  {{#if user_profile.projects}}
+  PROJECTS:
+  {{user_profile.projects}}
+  {{/if}}
+  {{/if}}
+  
+  {{#if target_role}}
+  TARGET ROLE: {{target_role}}
+  {{/if}}
+  
+  {{#if job_description}}
+  JOB DESCRIPTION FOR ALIGNMENT:
+  {{job_description}}
+  {{/if}}
+  
+  {{#if user_preferences}}
+  USER PREFERENCES:
+  {{user_preferences}}
+  {{/if}}
+  
+  Generate a professional resume in Markdown format with the following structure:
+  
+  # [Full Name]
+  
+  **Contact Information**
+  - Email: [email]
+  - Phone: [phone]
+  - Location: [location]
+  - LinkedIn: [linkedin_url]
+  
+  ## Professional Summary
+  [2-3 sentences highlighting key qualifications and career objectives]
+  
+  ## Experience
+  ### [Job Title] | [Company] | [Location] | [Dates]
+  - [Achievement-focused bullet points with quantifiable results]
+  - [Use action verbs and specific metrics where possible]
+  
+  ## Education
+  ### [Degree] | [Institution] | [Location] | [Year]
+  - [Relevant coursework, honors, or achievements]
+  
+  ## Skills
+  ### Technical Skills
+  - [Category]: [Skills list]
+  
+  ### Soft Skills
+  - [List of relevant soft skills]
+  
+  ## Certifications
+  - [Certification] | [Issuing Organization] | [Year]
+  
+  ## Projects (if applicable)
+  ### [Project Name] | [Year]
+  - [Brief description and key technologies/achievements]
+  
+  Guidelines:
+  - Use action verbs (achieved, implemented, led, developed, etc.)
+  - Include quantifiable results where possible (increased by X%, managed team of Y, etc.)
+  - Tailor content to the target role if provided
+  - Ensure ATS-friendly formatting
+  - Keep content concise but comprehensive
+  - Highlight most relevant experience and skills
+  - If rewriting, improve structure, language, and impact while preserving all important information
+
+template_format: handlebars
+description: |
+  This template generates a professional resume in Markdown format based on user profile information.
+  It can create new resumes or rewrite existing ones with improved structure and content.
+
+input_variables:
+  - name: existing_resume
+    description: Existing resume content to rewrite/improve
+    type: string
+    is_required: false
+  - name: user_profile
+    description: User profile information including personal details, experience, education, skills
+    type: object
+    is_required: false
+  - name: target_role
+    description: Target job role for resume customization
+    type: string
+    is_required: false
+  - name: job_description
+    description: Job description to align the resume with
+    type: string
+    is_required: false
+  - name: user_preferences
+    description: User preferences for resume style and content
+    type: string
+    is_required: false
+
+output_variables:
+  - description: A professionally formatted resume in Markdown
+
+execution_settings:
+  azure_openai:
+    model: gpt-4o
+    max_tokens: 2000
+    temperature: 0.3
+    function_choice_behavior:
+      type: auto

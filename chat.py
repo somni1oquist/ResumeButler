@@ -9,8 +9,46 @@ from semantic_kernel.contents import ChatHistory
 
 user_profile = UserProfile()
 chat_history = ChatHistory()
+_agent = None  # Lazy initialization
+
+
+def get_agent():
+    """Get agent instance with lazy initialization"""
+    global _agent
+    if _agent is None:
+        try:
+            from agent import ResumeButlerAgent
+            _agent = ResumeButlerAgent(user_profile, chat_history)
+        except Exception as e:
+            print(f"Failed to initialize agent: {e}")
+            _agent = None
+    return _agent
 async def chat(user_question: str | None = None) -> bool | str:
-    """Interact with the Recruiter AI."""
+    """Interact with the Recruiter AI or Resume Agent."""
+    # Try to get agent instance
+    agent = get_agent()
+    
+    # Check if user wants to use agent mode
+    if agent and user_question and any(keyword in user_question.lower() for keyword in 
+                           ['create resume', 'new resume', 'generate resume', 'build resume', 'rewrite resume', 'improve resume']):
+        # Use agent mode
+        try:
+            response = await agent.process_message(user_question)
+            return response
+        except Exception as e:
+            print(f"Agent processing failed: {e}")
+            # Fall back to regular chat
+    
+    # Check if we're already in agent mode
+    if agent and user_profile.agent_mode and user_profile.agent_mode != 'chat':
+        try:
+            response = await agent.process_message(user_question)
+            return response
+        except Exception as e:
+            print(f"Agent processing failed: {e}")
+            # Fall back to regular chat
+    
+    # Regular HR chat mode
     kernel, request_settings = get_kernel()
     
     # Render the system prompt with user profile data

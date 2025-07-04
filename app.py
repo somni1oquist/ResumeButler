@@ -27,7 +27,7 @@ with st.sidebar:
                                on_change=lambda: st.session_state.update({"ready": False, "matched": False}))
 
 st.title("Resume Butler", width="stretch")
-st.caption("Your AI-powered resume butler. Upload your resume and enter job description to get started.")
+st.caption("Your AI-powered resume butler. Upload your resume and enter job description to get started, or ask me to create a new resume!")
 
 # Check if the session state is initialised
 if "ready" not in st.session_state:
@@ -35,7 +35,7 @@ if "ready" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = [{
         "role": "assistant",
-        "content": "G'day! I'm your Resume Butler. Let's get started by uploading your resume and entering the job description."
+        "content": "G'day! I'm your Resume Butler. I can help you in multiple ways:\n\n🔍 **Analyze existing resume** - Upload your resume and job description for analysis\n🚀 **Create new resume** - Just say 'create resume' and I'll guide you through building one from scratch\n🔄 **Improve existing resume** - Say 'rewrite resume' to enhance your current resume\n\nWhat would you like to do today?"
     }]
 if "matched" not in st.session_state:
     st.session_state.matched = False
@@ -48,6 +48,27 @@ if not st.session_state.ready:
               disabled=not resume_file or (enable_jd and not jd_text),
               help="Click when you are ready to start the analysis.", icon="📝",
               on_click=lambda: st.session_state.update({"ready": True}))
+    
+    # Add quick start buttons for agent features
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚀 Create New Resume", use_container_width=True, 
+                     help="Start creating a resume from scratch"):
+            st.session_state.messages.append({
+                "role": "user", 
+                "content": "I want to create a new resume"
+            })
+            st.rerun()
+    
+    with col2:
+        if st.button("🔄 Improve Resume", use_container_width=True, 
+                     help="Improve an existing resume",
+                     disabled=not resume_file):
+            st.session_state.messages.append({
+                "role": "user", 
+                "content": "I want to rewrite and improve my resume"
+            })
+            st.rerun()
 
 if st.session_state.ready:
     if resume_file is None:
@@ -64,7 +85,7 @@ if st.session_state.ready:
             st.session_state.matched = True
 
         # If the user is ready, allow them to ask questions
-        if user_prompt := st.chat_input(placeholder="Ask me anything about your resume or job description..."):
+        if user_prompt := st.chat_input(placeholder="Ask me anything about your resume, job description, or say 'create resume' to start fresh!"):
             # Display the user prompt
             st.session_state.messages.append({"role": "user", "content": user_prompt})
             st.chat_message("user", avatar="👤").write(user_prompt)
@@ -77,3 +98,18 @@ if st.session_state.ready:
                 st.chat_message("assistant", avatar="🤵").markdown(response)
             elif response is False:
                 st.toast("Failed to generate HR response.", icon=":material/error:")
+
+# Handle agent mode interactions even when not ready
+elif user_prompt := st.chat_input(placeholder="Ask me anything or say 'create resume' to get started!"):
+    # Display the user prompt
+    st.session_state.messages.append({"role": "user", "content": user_prompt})
+    st.chat_message("user", avatar="👤").write(user_prompt)
+
+    with st.spinner("Thinking...", width="stretch"):
+        response = asyncio.run(chat(user_prompt))
+
+    if response and isinstance(response, str):
+        st.session_state.messages.append({"role": "assistant", "content": str(response)})
+        st.chat_message("assistant", avatar="🤵").markdown(response)
+    elif response is False:
+        st.toast("Failed to generate response.", icon=":material/error:")
