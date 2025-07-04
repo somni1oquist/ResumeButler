@@ -4,10 +4,9 @@ Supports multiple parsing strategies with Azure Document Intelligence as primary
 """
 
 from abc import ABC, abstractmethod
-from typing import Protocol, Union
+from azure.ai.documentintelligence.models import AnalyzeResult
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import os
-import tempfile
 from dotenv import load_dotenv
 
 
@@ -72,8 +71,8 @@ class AzureDocumentIntelligenceParser(DocumentParserStrategy):
             ]
             
             return (mime_type in supported_types and 
-                    self.endpoint and 
-                    self.api_key)
+                    bool(self.endpoint) and 
+                    bool(self.api_key))
         except Exception:
             return False
     
@@ -102,7 +101,7 @@ class AzureDocumentIntelligenceParser(DocumentParserStrategy):
         except Exception as e:
             raise ValueError(f"Azure Document Intelligence parsing failed: {str(e)}")
     
-    def _format_result(self, result) -> str:
+    def _format_result(self, result: AnalyzeResult) -> str:
         """Format Azure Document Intelligence result into structured text."""
         if not result or not result.pages:
             return "No content found in document."

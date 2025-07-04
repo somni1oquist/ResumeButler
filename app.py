@@ -18,7 +18,7 @@ with st.sidebar:
     enable_jd = st.checkbox("Analyse with JD", value=True, label_visibility="visible", disabled=True,
                                   help="Enable this to analyse your resume with the job description provided.")
     st.markdown("### Upload Resume <span style='color: red;'>*</span>", unsafe_allow_html=True)
-    resume_file = st.file_uploader("Upload your resume", type=["pdf", "docx"],
+    resume_file = st.file_uploader("Upload your resume", type=["pdf", "docx", "txt"],
                                    label_visibility="collapsed",
                                    on_change=lambda: st.session_state.update({"ready": False, "matched": False}))
     if enable_jd:
