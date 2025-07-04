@@ -1,16 +1,26 @@
 def parse_resume(file) -> str:
-    import mimetypes
-    mime_type, _ = mimetypes.guess_type(file.name)
-    file.seek(0)
-    if mime_type == "application/pdf":
-        return _parse_pdf(file)
-    elif mime_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                       "application/msword"):
-        return _parse_docx(file)
-    elif mime_type == "text/plain":
-        return _parse_txt(file)
-    else:
-        raise ValueError("Unsupported file type")
+    """
+    Parse resume using the best available strategy.
+    Uses Azure Document Intelligence as primary parser with fallback to basic parsers.
+    """
+    try:
+        from document_parser import get_parser_manager
+        parser_manager = get_parser_manager()
+        return parser_manager.parse_document(file)
+    except ImportError:
+        # Fallback to legacy parsing if document_parser is not available
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(file.name)
+        file.seek(0)
+        if mime_type == "application/pdf":
+            return _parse_pdf(file)
+        elif mime_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                           "application/msword"):
+            return _parse_docx(file)
+        elif mime_type == "text/plain":
+            return _parse_txt(file)
+        else:
+            raise ValueError("Unsupported file type")
 
 def _parse_pdf(file) -> str:
     """

@@ -14,23 +14,31 @@ def get_di_client() -> DocumentIntelligenceClient:
     key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
     
     if not endpoint or not key:
-        raise ValueError("Please set the AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY environment variables.")
+        raise ValueError("Please set the AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.")
     
     return DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
 
-def analyze_document(di_client: DocumentIntelligenceClient, doc_path: str):
-
-    if not os.path.exists(doc_path):
-        raise FileNotFoundError(f"The document at {doc_path} does not exist.")
+def analyze_document(di_client: DocumentIntelligenceClient, doc_path: str = None, file_bytes: bytes = None):
+    """
+    Analyze document using Azure Document Intelligence.
+    Supports both file path and file bytes input.
+    """
+    if doc_path:
+        if not os.path.exists(doc_path):
+            raise FileNotFoundError(f"The document at {doc_path} does not exist.")
+        
+        if not os.path.isfile(doc_path):
+            raise ValueError(f"The path {doc_path} is not a valid file.")
+        
+        with open(doc_path, "rb") as doc_file:
+            file_bytes = doc_file.read()
     
-    if not os.path.isfile(doc_path):
-        raise ValueError(f"The path {doc_path} is not a valid file.")
+    if not file_bytes:
+        raise ValueError("Either doc_path or file_bytes must be provided.")
     
-    poller = None
-    with open(doc_path, "rb") as doc_file:
-        poller = di_client.begin_analyze_document(
-            "prebuilt-layout", AnalyzeDocumentRequest(bytes_source=doc_file.read())
-        )
+    poller = di_client.begin_analyze_document(
+        "prebuilt-layout", AnalyzeDocumentRequest(bytes_source=file_bytes)
+    )
 
     if not poller:
         raise RuntimeError("Failed to start the document analysis.")
