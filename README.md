@@ -9,15 +9,15 @@ This system combines resume-job matching analysis with interactive HR consultati
 - Skills gap analysis
 - Match percentage scoring
 - Keyword extraction and comparison
-- **Enhanced document structure parsing with Azure Document Intelligence**
-- **Automatic fallback to basic parsing methods when Azure services aren't available**
+- Enhanced document structure parsing with Azure Document Intelligence
+- Automatic fallback to basic parsing methods when Azure services aren't available
 
 ### 🤖 Recruiter AI Consultation
 - Interactive career guidance
 - Interview preparation tips
 - Resume improvement suggestions
 - Personalised feedback
-- **Improved context understanding from structured document parsing**
+- Improved context understanding from structured document parsing
 
 ## Files Overview
 
@@ -28,9 +28,7 @@ This system combines resume-job matching analysis with interactive HR consultati
 
 ### Python Scripts
 - **`match.py`**: Match resume against given job description
-- **`utils.py`**: Resume parsing utilities with intelligent parsing strategy
 - **`document_parser.py`**: Advanced document parsing with Azure Document Intelligence integration
-- **`doc_intel.py`**: Azure Document Intelligence client and utilities
 
 ## Setup
 
