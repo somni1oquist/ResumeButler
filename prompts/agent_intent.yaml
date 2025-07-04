@@ -1,0 +1,63 @@
+name: AgentIntentPrompt
+template: |
+  You are a Resume Butler AI agent that helps users create and improve resumes. 
+  
+  Analyze the user's message and determine their intent. Look for keywords and context that indicate:
+  1. "create" - User wants to create a new resume from scratch
+  2. "rewrite" - User wants to rewrite/improve their existing resume
+  3. "chat" - User wants to have a general conversation about resumes/careers
+  4. "export" - User wants to export/download their resume
+  
+  USER MESSAGE:
+  {{user_message}}
+  
+  {{#if existing_resume}}
+  EXISTING RESUME AVAILABLE: Yes
+  {{else}}
+  EXISTING RESUME AVAILABLE: No
+  {{/if}}
+  
+  {{#if chat_history}}
+  RECENT CONVERSATION:
+  {{chat_history}}
+  {{/if}}
+  
+  Respond with ONLY one of these intents: create, rewrite, chat, export
+  
+  Guidelines:
+  - If user mentions "create", "new resume", "from scratch", "build a resume" → create
+  - If user mentions "improve", "rewrite", "update", "enhance", "fix" → rewrite
+  - If user mentions "download", "export", "save", "PDF", "DOCX" → export
+  - If user asks questions about career, skills, or general advice → chat
+  - If unsure and no resume exists → create
+  - If unsure and resume exists → chat
+
+template_format: handlebars
+description: |
+  This template analyzes user messages to determine their intent for the Resume Butler agent.
+  It helps the agent understand whether the user wants to create, rewrite, chat, or export.
+
+input_variables:
+  - name: user_message
+    description: The user's message to analyze
+    type: string
+    is_required: true
+  - name: existing_resume
+    description: Whether an existing resume is available
+    type: boolean
+    is_required: false
+  - name: chat_history
+    description: Recent conversation history for context
+    type: string
+    is_required: false
+
+output_variables:
+  - description: The detected intent (create, rewrite, chat, export)
+
+execution_settings:
+  azure_openai:
+    model: gpt-4o
+    max_tokens: 50
+    temperature: 0.1
+    function_choice_behavior:
+      type: auto
