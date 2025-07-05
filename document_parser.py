@@ -95,6 +95,9 @@ class AzureDocumentIntelligenceParser(DocumentParserStrategy):
             if page.lines:
                 for line in page.lines:
                     formatted_content.append(line.content)
+            if page.words:
+                formatted_content.append("\n## Words")
+                formatted_content.append(" ".join(word.content for word in page.words))
             if page.selection_marks:
                 formatted_content.append("\n## Selection Marks")
                 for mark in page.selection_marks:

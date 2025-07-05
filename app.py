@@ -1,10 +1,18 @@
 import asyncio
 import streamlit as st
-from chat import chat, match
+from agents.resume_agent import ResumeAgent
+from semantic_kernel.agents import ChatHistoryAgentThread
 
 
 # Initialisation
 jd_text = ""
+
+# Function
+async def initialise_agents() -> ResumeAgent:
+    """Initialise the agents for the app."""
+    resume_agent = await ResumeAgent.create()
+    return resume_agent
+
 # Set the page configuration for the Streamlit app
 st.set_page_config(
     page_title="Resume Butler",
@@ -13,25 +21,25 @@ st.set_page_config(
 )
 
 # Sidebar configuration
-with st.sidebar:
-    st.markdown("### Settings")
-    enable_jd = st.checkbox("Analyse with JD", value=True, label_visibility="visible", disabled=True,
-                                  help="Enable this to analyse your resume with the job description provided.")
-    st.markdown("### Upload Resume <span style='color: red;'>*</span>", unsafe_allow_html=True)
-    resume_file = st.file_uploader("Upload your resume", type=["pdf", "docx", "txt"],
-                                   label_visibility="collapsed",
+st.sidebar.markdown("### Settings")
+enable_jd = st.sidebar.checkbox("Analyse with JD", value=True, label_visibility="visible", disabled=True,
+                                help="Enable this to analyse your resume with the job description provided.")
+st.sidebar.markdown("### Upload Resume <span style='color: red;'>*</span>", unsafe_allow_html=True)
+resume_file = st.sidebar.file_uploader("Upload your resume", type=["pdf", "docx", "txt"],
+                                       label_visibility="collapsed",
+                                       on_change=lambda: st.session_state.update({"ready": False, "matched": False}))
+if enable_jd:
+    st.sidebar.markdown("### Job Description <span style='color: red;'>*</span>", unsafe_allow_html=True)
+    jd_text = st.sidebar.text_area("Enter job description", height=160, label_visibility="collapsed",
                                    on_change=lambda: st.session_state.update({"ready": False, "matched": False}))
-    if enable_jd:
-        st.markdown("### Job Description <span style='color: red;'>*</span>", unsafe_allow_html=True)
-        jd_text = st.text_area("Enter job description", height=160, label_visibility="collapsed",
-                               on_change=lambda: st.session_state.update({"ready": False, "matched": False}))
 
 st.title("Resume Butler", width="stretch")
 st.caption("Your AI-powered resume butler. Upload your resume and enter job description to get started.")
 
-# Check if the session state is initialised
+# Initialise session state variables
 if "ready" not in st.session_state:
     st.session_state.ready = False
+
 if "messages" not in st.session_state:
     st.session_state.messages = [{
         "role": "assistant",
@@ -39,6 +47,13 @@ if "messages" not in st.session_state:
     }]
 if "matched" not in st.session_state:
     st.session_state.matched = False
+
+
+if "resume_agent" not in st.session_state:
+    st.session_state.resume_agent = asyncio.run(initialise_agents())
+
+if "resume_thread" not in st.session_state:
+    st.session_state.resume_thread = ChatHistoryAgentThread()
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"], avatar="🤵").write(msg["content"])
@@ -58,7 +73,10 @@ if st.session_state.ready:
         # If the match report is not generated yet, generate it
         if st.session_state.matched is False:
             with st.spinner("Generating...", width="stretch"):
-                match_report = asyncio.run(match(resume_file, jd_text))
+                match_report = asyncio.run(st.session_state.resume_agent.get_match_report({
+                    "resume_file": resume_file,
+                    "jd": jd_text,
+                }, thread=st.session_state.resume_thread))
             st.session_state.messages.append({"role": "assistant", "content": match_report})
             st.chat_message("assistant", avatar="🤵").markdown(match_report)
             st.session_state.matched = True
@@ -70,7 +88,10 @@ if st.session_state.ready:
             st.chat_message("user", avatar="👤").write(user_prompt)
 
             with st.spinner("Thinking...", width="stretch"):
-                response = asyncio.run(chat(user_prompt))
+                response = asyncio.run(st.session_state.resume_agent.process(
+                    user_prompt, 
+                    thread=st.session_state.resume_thread
+                ))
 
             if response and isinstance(response, str):
                 st.session_state.messages.append({"role": "assistant", "content": str(response)})
