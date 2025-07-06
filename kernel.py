@@ -1,7 +1,7 @@
 import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatPromptExecutionSettings
 from semantic_kernel.functions import KernelArguments
-from semantic_kernel.prompt_template import PromptTemplateConfig, KernelPromptTemplate
+from semantic_kernel.prompt_template import PromptTemplateConfig, KernelPromptTemplate, HandlebarsPromptTemplate
 from dotenv import load_dotenv
 import os
 
@@ -39,7 +39,15 @@ async def load_prompt(template_name: str, arguments: KernelArguments | None = No
     elif arguments is None:
         return prompt["template"]
     else:
+        prompt_template = None
+        rendered_prompt: str | None = None
+
         config = PromptTemplateConfig(template=prompt["template"], template_format=prompt["template_format"])
-        prompt_template = KernelPromptTemplate(prompt_template_config=config)
-    rendered_prompt = await prompt_template.render(kernel, arguments)
+        if prompt["template_format"] == "semantic-kernel":
+            prompt_template = KernelPromptTemplate(prompt_template_config=config)
+        elif prompt["template_format"] == "handlebars":
+            prompt_template = HandlebarsPromptTemplate(prompt_template_config=config)
+
+        if prompt_template is not None:
+            rendered_prompt = await prompt_template.render(kernel, arguments)
     return rendered_prompt

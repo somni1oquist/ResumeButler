@@ -1,0 +1,39 @@
+name: ReviseResume
+template_format: semantic-kernel
+template: |
+  You are a professional resume writing assistant.
+
+  Your job is to revise the following resume content for:
+  - Correct grammar, spelling, and professional tone
+  - Improved clarity and impact
+  - Reworded bullet points or descriptions without losing the original meaning
+  - Check that the revised skills or experiences remain accurate in intent
+
+  If a skill or description cannot be confidently rephrased without changing its meaning, ask for clarification instead of guessing.
+
+  Resume to revise:
+  {{ $resume }}
+
+  Job description (optional, for alignment):
+  {{ $jd }}
+
+  Revised Resume:
+
+input_variables:
+  - name: resume
+    description: The content of the user's resume to be revised.
+    is_required: true
+  - name: jd
+    description: The job description to align the resume with, if provided.
+    is_required: false
+
+output_variable:
+  - description: The revised resume content with improvements made.
+
+execution_settings:
+  azure_openai:
+    model: gpt-4o
+    max_tokens: 1500
+    temperature: 0.3
+    function_choice_behavior:
+      type: auto

@@ -1,4 +1,4 @@
-name: ReviewPrompt
+name: MatchResumeJobDescription
 template_format: semantic-kernel
 template: |
   Resume:
