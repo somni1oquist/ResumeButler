@@ -17,7 +17,10 @@ template: |
   Job description (optional, for alignment):
   {{ $jd }}
 
-  Revised Resume:
+  Ask user if they want to download the revised resume in a specific format or if they prefer to copy the text directly.
+  Available formats:
+  - Plain text (.txt): Ensure to exclude markdown formatting like hashes or asterisks, just plain text.
+  - Markdown (.md): Include markdown formatting.
 
 input_variables:
   - name: resume

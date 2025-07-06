@@ -6,8 +6,10 @@ from user_profile import UserProfile
 from tools import RevisionPlugin
 from constants import ServiceIDs
 from semantic_kernel.agents import ChatCompletionAgent, ChatHistoryAgentThread
+from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
+from semantic_kernel.contents.function_result_content import FunctionResultContent
 
 
 _parser = get_parser_manager()
@@ -40,7 +42,7 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
         
         return cls(name=name, kernel=kernel, instructions=instruction)
 
-    async def process(self, prompt: str, thread: ChatHistoryAgentThread | None = None, **kwargs) -> str:
+    async def process(self, prompt: str, thread: ChatHistoryAgentThread | None = None, **kwargs) -> dict | str:
         """Process resume and job description to generate match report."""
         if not thread:
             thread = ChatHistoryAgentThread()
@@ -51,11 +53,14 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
 
         try:
             response = await self.get_response(messages=prompt, thread=thread)
-            return str(response)
+            if self.get_tool_output(thread):
+                tool_output = self.get_tool_output(thread)
+                return {"tool_output": tool_output}
+            return str(response.message)
         except Exception as e:
-            return f"Error processing request: {e}"
+            raise ValueError(f"Error processing request: {e}")
         
-    async def ask(self, data: dict, thread: ChatHistoryAgentThread | None = None) -> str:
+    async def ask(self, data: dict, thread: ChatHistoryAgentThread | None = None) -> dict | str:
         """Process user input and return a response."""
         profile = self.get_profile(data)
         prompt = data.get("user_input", "User input not provided.")
@@ -71,14 +76,17 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
         match_args = KernelArguments(resume=profile.resume, jd=profile.jd)
         match_prompt = await load_prompt("match", match_args)
         # Process with user profile if match prompt is found
+        response = None
         if match_prompt and profile:
             response = await self.process(match_prompt, thread, **{"user_profile": KernelArguments(user_profile=profile)})
-            return response
         # Process without user profile if match prompt is found
         elif match_prompt:
             response = await self.process(match_prompt, thread)
+        
+        if response and isinstance(response, str):
             return response
-        return "No match template found."
+
+        return "Failed to generate match report."
 
     def get_profile(self, data: dict) -> UserProfile:
         """Extract user profile information from the provided data."""
@@ -93,3 +101,24 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
                 user_profile.resume = resume
         
         return user_profile
+    
+    def get_tool_output(self, thread: ChatHistoryAgentThread):
+        """Extract the last tool output from the chat history."""
+        tool_outputs = [msg for msg in thread._chat_history if msg.role == AuthorRole.TOOL]
+        if tool_outputs:
+            func_result = tool_outputs[-1].items[0]
+            if func_result.content_type == "message":
+                # Text type
+                return func_result.result
+            elif func_result.content_type == "function_result":
+                # File type
+                func_name = func_result.function_name
+                if func_name.startswith("export_"):
+                    # Handle export functions
+                    if func_result.result and isinstance(func_result.result, bytes):
+                        return {
+                            "content": func_result.result,
+                            "ext": func_name.split("_")[-1],
+                        }
+                return func_result.result
+        return None
