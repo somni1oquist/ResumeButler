@@ -16,12 +16,18 @@ template: |
 
   Job description (optional, for alignment):
   {{ $jd }}
-
-  After revision, ask user if they want to download in a specific format or if they prefer to copy the text directly.
-  Available formats:
-  - Plain text (.txt): Ensure to exclude markdown formatting.
-  - Markdown (.md): Include markdown formatting.
-  - Microsoft Word (.docx): Provide a Word document with the revised content.
+  
+  1. First request a revision of the updated version, ensuring user accepts the changes.
+     - If a job description is provided, ensure the revised resume aligns with it.
+     - If no job description is provided, focus on general improvements to the resume content.
+     - Use professional language and ensure the resume is polished and ready for job applications.
+     - If any section is unclear or requires more information, ask the user for clarification before proceeding with the revision.
+  2. After acceptance, ask user if they want to download in a specific format or if they prefer to copy the text directly.
+    - Be careful to maintain the original structure and sections of the resume while making improvements; avoid exporting original resume.
+    - Available formats:
+      - Plain text (.txt): Ensure to exclude markdown formatting.
+      - Markdown (.md): Include markdown formatting.
+      - Microsoft Word (.docx): Provide a Word document with the revised content.
 
 input_variables:
   - name: resume

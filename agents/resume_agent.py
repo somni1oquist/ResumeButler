@@ -5,11 +5,10 @@ from . import BaseAgent
 from user_profile import UserProfile
 from tools import RevisionPlugin
 from constants import ServiceIDs
-from semantic_kernel.agents import ChatCompletionAgent, ChatHistoryAgentThread
+from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
-from semantic_kernel.contents.function_result_content import FunctionResultContent
 
 
 _parser = get_parser_manager()
@@ -42,17 +41,16 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
         
         return cls(name=name, kernel=kernel, instructions=instruction)
 
-    async def process(self, prompt: str, thread: ChatHistoryAgentThread | None = None, **kwargs) -> dict | str:
+    async def process(self, prompt: str, **kwargs) -> dict | str:
         """Process resume and job description to generate match report."""
-        if not thread:
-            thread = ChatHistoryAgentThread()
         # Unpack additional arguments
         if "user_profile" in kwargs:
             new_instruction = await load_prompt("resume_agent", kwargs.get("user_profile"))
             self.instructions = new_instruction if new_instruction else self.instructions
 
         try:
-            response = await self.get_response(messages=prompt, thread=thread)
+            response = await self.get_response(messages=prompt)
+            thread = response.thread
             if self.get_tool_output(thread):
                 tool_output = self.get_tool_output(thread)
                 return {"tool_output": tool_output}
@@ -60,17 +58,17 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
         except Exception as e:
             raise ValueError(f"Error processing request: {e}")
         
-    async def ask(self, data: dict, thread: ChatHistoryAgentThread | None = None) -> dict | str:
+    async def ask(self, data: dict) -> dict | str:
         """Process user input and return a response."""
         profile = self.get_profile(data)
         prompt = data.get("user_input", "User input not provided.")
         if profile:
-            response = await self.process(prompt, thread, **{"user_profile": KernelArguments(user_profile=profile)})
+            response = await self.process(prompt, **{"user_profile": KernelArguments(user_profile=profile)})
         else:
-            response = await self.process(prompt, thread)
+            response = await self.process(prompt)
         return response
 
-    async def get_match_report(self, data: dict, thread: ChatHistoryAgentThread | None) -> str:
+    async def get_match_report(self, data: dict) -> str:
         """Generate a match report between the resume and job description."""
         profile = self.get_profile(data)
         match_args = KernelArguments(resume=profile.resume, jd=profile.jd)
@@ -78,10 +76,10 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
         # Process with user profile if match prompt is found
         response = None
         if match_prompt and profile:
-            response = await self.process(match_prompt, thread, **{"user_profile": KernelArguments(user_profile=profile)})
+            response = await self.process(match_prompt, **{"user_profile": KernelArguments(user_profile=profile)})
         # Process without user profile if match prompt is found
         elif match_prompt:
-            response = await self.process(match_prompt, thread)
+            response = await self.process(match_prompt)
         
         if response and isinstance(response, str):
             return response
@@ -101,8 +99,8 @@ class ResumeAgent(ChatCompletionAgent, BaseAgent):
                 user_profile.resume = resume
         
         return user_profile
-    
-    def get_tool_output(self, thread: ChatHistoryAgentThread):
+
+    def get_tool_output(self, thread):
         """Extract the last tool output from the chat history."""
         tool_outputs = [msg for msg in thread._chat_history if msg.role == AuthorRole.TOOL]
         if tool_outputs:

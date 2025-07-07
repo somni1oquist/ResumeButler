@@ -2,7 +2,6 @@ import asyncio
 import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
 from agents.resume_agent import ResumeAgent
-from semantic_kernel.agents import ChatHistoryAgentThread
 import time
 
 
@@ -81,7 +80,7 @@ def match_report() -> None:
         match_report = asyncio.run(st.session_state.resume_agent.get_match_report({
             "resume_file": resume_file,
             "jd": jd_text,
-        }, thread=st.session_state.resume_thread))
+        }))
     st.session_state.messages.append({"role": "assistant", "content": match_report})
     st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(match_report)
 
@@ -95,7 +94,7 @@ def quick_revision() -> None:
             "user_input": prefilled,
             "resume_file": resume_file,
             "jd": jd_text,
-        }, thread=st.session_state.resume_thread))
+        }))
     display_result(response)
 
 # Initialise session state variables
@@ -109,9 +108,6 @@ if "messages" not in st.session_state:
 
 if "resume_agent" not in st.session_state:
     st.session_state.resume_agent = asyncio.run(initialise_agents())
-
-if "resume_thread" not in st.session_state:
-    st.session_state.resume_thread = ChatHistoryAgentThread()
 
 # Set the page configuration for the Streamlit app
 st.set_page_config(
@@ -165,6 +161,6 @@ if user_input and check_required():
             "user_input": user_input,
             "resume_file": resume_file,
             "jd": jd_text
-        }, thread=st.session_state.resume_thread))
+        }))
 
     display_result(response)
