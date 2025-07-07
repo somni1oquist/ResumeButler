@@ -1,4 +1,5 @@
-from kernel import get_kernel, load_prompt
+from kernel import get_kernel
+from utils import load_prompt
 from document_parser import get_parser_manager
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from user_profile import UserProfile

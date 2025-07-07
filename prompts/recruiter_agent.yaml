@@ -1,7 +1,7 @@
 name: ResumeAgent
 template_format: semantic-kernel
 template: |
-  You are ResumeAgent — an experienced recruiter and HR specialist helping job seekers improve their resumes and career outcomes.
+  You are ResumeAgent as at {{ $now }} — an experienced recruiter and HR specialist helping job seekers improve their resumes and career outcomes.
 
   You may be provided with the following:
 
@@ -29,6 +29,9 @@ template: |
   Respond directly and professionally based on the above context.
 
 input_variables:
+  - name: now
+    description: The current date and time for context.
+    is_required: true
   - name: user_profile
     description: The user's profile containing additional context.
     is_required: false

@@ -1,12 +1,11 @@
 import asyncio
 import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
-from agents.resume_agent import ResumeAgent
-import time
+from agents.recruiter_agent import RecruiterAgent
 
 
 # Initialisation
-jd_text = ""
+jd = ""
 AGENT_AVATAR = "🤵"
 USER_AVATAR = "👤"
 file_type = {
@@ -17,11 +16,6 @@ file_type = {
 }
 
 # Functions
-async def initialise_agents() -> ResumeAgent:
-    """Initialise the agents for the app."""
-    resume_agent = await ResumeAgent.create()
-    return resume_agent
-
 def random_str(length: int = 8) -> str:
     """Generate a random string of fixed length."""
     import random
@@ -33,7 +27,7 @@ def check_required() -> bool:
     passed = False
     if not resume_file:
         st.toast("Please upload your resume before proceeding.", icon=":material/warning:")
-    if enable_jd and not jd_text:
+    if enable_jd and not jd:
         st.toast("Please enter a job description before proceeding.", icon=":material/warning:")
     else:
         passed = True
@@ -77,25 +71,14 @@ def display_result(response) -> None:
 
 def match_report() -> None:
     with st.spinner("Generating...", width="stretch"):
-        match_report = asyncio.run(st.session_state.resume_agent.get_match_report({
+        match_prompt = "Please provide a match report based on the uploaded resume and optional job description."
+        match_report = asyncio.run(st.session_state.recruiter_agent.ask({
+            "user_input": match_prompt,
             "resume_file": resume_file,
-            "jd": jd_text,
+            "jd": jd,
         }))
     st.session_state.messages.append({"role": "assistant", "content": match_report})
     st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(match_report)
-
-def quick_revision() -> None:
-    """Quickly revise the resume based on the job description."""
-    prefilled = "I would like to revise my resume quickly based on the job description provided."
-    st.session_state.messages.append({"role": "user", "content": prefilled})
-    st.chat_message("user", avatar=USER_AVATAR).write(prefilled)
-    with st.spinner("Analysing...", width="stretch"):
-        response = asyncio.run(st.session_state.resume_agent.ask({
-            "user_input": prefilled,
-            "resume_file": resume_file,
-            "jd": jd_text,
-        }))
-    display_result(response)
 
 # Initialise session state variables
 if "match_clicked" not in st.session_state:
@@ -106,8 +89,8 @@ if "messages" not in st.session_state:
         "content": "G'day! I'm your Resume Butler. Let's get started by uploading your resume and entering the job description."
     }]
 
-if "resume_agent" not in st.session_state:
-    st.session_state.resume_agent = asyncio.run(initialise_agents())
+if "recruiter_agent" not in st.session_state:
+    st.session_state.recruiter_agent = asyncio.run(RecruiterAgent.create())
 
 # Set the page configuration for the Streamlit app
 st.set_page_config(
@@ -124,7 +107,7 @@ st.sidebar.markdown("### Upload Resume <span style='color: red;'>*</span>", unsa
 resume_file = st.sidebar.file_uploader("Resume", type=SUPPORTED_RESUME_TYPES)
 if enable_jd:
     st.sidebar.markdown("### Job Description <span style='color: red;'>*</span>", unsafe_allow_html=True)
-    jd_text = st.sidebar.text_area("Enter job description", height=160, label_visibility="collapsed")
+    jd = st.sidebar.text_area("Enter job description", height=160, label_visibility="collapsed")
 
 st.title("Resume Butler", width="stretch")
 st.caption("Your AI-powered resume butler. Upload your resume and enter job description to get started.")
@@ -136,7 +119,7 @@ for msg in st.session_state.messages:
         st.chat_message(msg["role"], avatar=AGENT_AVATAR).write(msg["content"])
 
 # Buttons for actions
-if not st.session_state.get("match_button", False):
+if not st.session_state.get("match_clicked", False):
     if match_btn := st.button(
         "Generate Match Report",
         key="match_btn",
@@ -157,10 +140,10 @@ if user_input and check_required():
     st.chat_message("user", avatar=USER_AVATAR).write(user_input)
 
     with st.spinner("Thinking...", width="stretch"):
-        response = asyncio.run(st.session_state.resume_agent.ask({
+        response = asyncio.run(st.session_state.recruiter_agent.ask({
             "user_input": user_input,
             "resume_file": resume_file,
-            "jd": jd_text
+            "jd": jd
         }))
 
     display_result(response)
