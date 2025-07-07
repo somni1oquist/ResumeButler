@@ -1,5 +1,7 @@
+import io
 from kernel import get_kernel, load_prompt
 from semantic_kernel.functions import KernelArguments, kernel_function
+from docx import Document
 from user_profile import UserProfile
 from constants import ServiceIDs
 
@@ -7,7 +9,7 @@ from constants import ServiceIDs
 class RevisionPlugin:
     """Plugin to handle resume revision based on user profile."""
 
-    @kernel_function(name="revise_resume", description="Revise, update or edit the resume based on user profile.")
+    @kernel_function(name="revise_resume", description="Revise/update/edit/rewrite the resume based on user profile.")
     async def revise_resume(self, user_profile: UserProfile) -> str:
         prompt = await self.get_revise_prompt(user_profile)
         kernel, request_settings = get_kernel()
@@ -49,5 +51,9 @@ class RevisionPlugin:
     @kernel_function(name="export_docx", description="Export in DOCX format.")
     def export_docx(self, content: str) -> bytes:
         """Export the content as a Microsoft Word file."""
-        print("Exporting DOCX format is not implemented yet.")
-        return content.encode('utf-8')
+        doc = Document()
+        doc.add_paragraph(content)
+        doc_stream = io.BytesIO()
+        doc.save(doc_stream)
+        doc_stream.seek(0)
+        return doc_stream.read()

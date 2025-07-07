@@ -47,6 +47,7 @@ jsonschema==4.24.0
 jsonschema-path==0.3.4
 jsonschema-specifications==2025.4.1
 lazy-object-proxy==1.11.0
+lxml==6.0.0
 MarkupSafe==3.0.2
 more-itertools==10.7.0
 msal==1.32.3
@@ -85,6 +86,7 @@ PyMuPDF==1.26.1
 pymupdf4llm==0.0.25
 pyOpenSSL==25.1.0
 python-dateutil==2.9.0.post0
+python-docx==1.2.0
 python-dotenv==1.1.1
 pytz==2025.2
 PyYAML==6.0.2

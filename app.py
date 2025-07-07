@@ -3,6 +3,7 @@ import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
 from agents.resume_agent import ResumeAgent
 from semantic_kernel.agents import ChatHistoryAgentThread
+import time
 
 
 # Initialisation
@@ -39,6 +40,42 @@ def check_required() -> bool:
         passed = True
     return passed
 
+def display_result(response) -> None:
+    """Display the result of the agent's response."""
+    if response and isinstance(response, str):
+        st.session_state.messages.append({"role": "assistant", "content": str(response)})
+        st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(response)
+    elif isinstance(response, dict) and "tool_output" in response:
+        tool_output = response.get("tool_output")
+        if tool_output:
+            if isinstance(tool_output, str):
+                st.session_state.messages.append({"role": "assistant", "content": str(tool_output)})
+                st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(tool_output)
+
+            elif isinstance(tool_output, dict) and "content" in tool_output:
+                file_ext = tool_output.get("ext", "txt")
+                file_name = f"revised_resume-{random_str()}.{file_ext}"
+                file_content = tool_output.get("content")
+
+                if not file_content:
+                    st.toast("No content generated for the revised resume.", icon=":material/error:")
+                else:
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": f"Revised resume generated: {file_name}"
+                    })
+                    st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(f"Revised resume generated: {file_name}")
+                    st.download_button(
+                        label=f"{file_name}",
+                        icon=":material/download_2:",
+                        data=file_content,
+                        file_name=file_name,
+                        mime=file_type.get(file_ext, 'application/octet-stream'),
+                        key="download_revised_resume"
+                    )
+    else:
+        st.toast("Failed to generate HR response.", icon=":material/error:")
+
 def match_report() -> None:
     with st.spinner("Generating...", width="stretch"):
         match_report = asyncio.run(st.session_state.resume_agent.get_match_report({
@@ -48,11 +85,22 @@ def match_report() -> None:
     st.session_state.messages.append({"role": "assistant", "content": match_report})
     st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(match_report)
 
+def quick_revision() -> None:
+    """Quickly revise the resume based on the job description."""
+    prefilled = "I would like to revise my resume quickly based on the job description provided."
+    st.session_state.messages.append({"role": "user", "content": prefilled})
+    st.chat_message("user", avatar=USER_AVATAR).write(prefilled)
+    with st.spinner("Analysing...", width="stretch"):
+        response = asyncio.run(st.session_state.resume_agent.ask({
+            "user_input": prefilled,
+            "resume_file": resume_file,
+            "jd": jd_text,
+        }, thread=st.session_state.resume_thread))
+    display_result(response)
+
 # Initialise session state variables
-if "match" not in st.session_state:
-    st.session_state.match = False
-if "revise" not in st.session_state:
-    st.session_state.revise = False
+if "match_clicked" not in st.session_state:
+    st.session_state.match_clicked = False
 if "messages" not in st.session_state:
     st.session_state.messages = [{
         "role": "assistant",
@@ -86,26 +134,25 @@ st.title("Resume Butler", width="stretch")
 st.caption("Your AI-powered resume butler. Upload your resume and enter job description to get started.")
 
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"], avatar=AGENT_AVATAR).write(msg["content"])
+    if msg["role"] == "user":
+        st.chat_message(msg["role"], avatar=USER_AVATAR).write(msg["content"])
+    elif msg["role"] == "assistant":
+        st.chat_message(msg["role"], avatar=AGENT_AVATAR).write(msg["content"])
 
 # Buttons for actions
-match_button, revise_button = st.columns([1, 1])
-if not st.session_state.match:
-    match_button = st.button("Generate Match Report", key="match_button", icon="📝",
-                            help="Analyse your resume against the job description.",
-                            on_click=lambda: st.session_state.update({"match": True}))
-if not st.session_state.revise:
-    revise_button = st.button("Revise Resume", key="revise_button", icon="✍️",
-                              help="Revise your resume based on the job description and your profile.",
-                              on_click=lambda: st.session_state.update({"revise": True}))
-    
-if not st.session_state.match and match_button:
-    if check_required():
-        match_report()
-if not st.session_state.revise and revise_button:
-    if check_required():
-        # @TODO: Implement the revision functionality
-        print("Revision button clicked")
+if not st.session_state.get("match_button", False):
+    if match_btn := st.button(
+        "Generate Match Report",
+        key="match_btn",
+        icon="📝"
+    ):
+        if check_required():
+            st.session_state.match_clicked = True
+            st.rerun()
+
+if st.session_state.get("match_clicked", False):
+    match_report()
+    st.session_state.match_clicked = False
 
 user_input = st.chat_input(placeholder="Upload your resume and ask me anything about it or the job description...")
 if user_input and check_required():
@@ -120,35 +167,4 @@ if user_input and check_required():
             "jd": jd_text
         }, thread=st.session_state.resume_thread))
 
-    if response and isinstance(response, str):
-        st.session_state.messages.append({"role": "assistant", "content": str(response)})
-        st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(response)
-    elif isinstance(response, dict) and "tool_output" in response:
-        tool_output = response.get("tool_output")
-        response_message = response.get("response")
-        if tool_output:
-            if isinstance(tool_output, str):
-                st.session_state.messages.append({"role": "assistant", "content": str(tool_output)})
-                st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(tool_output)
-
-            elif isinstance(tool_output, dict) and "content" in tool_output:
-                file_ext = tool_output.get("ext", "txt")
-                file_name = f"revised_resume-{random_str()}.{file_ext}"
-                file_content = tool_output.get("content")
-
-                if not file_content:
-                    st.toast("No content generated for the revised resume.", icon=":material/error:")
-                else:
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"Revised resume generated: {file_name}"
-                    })
-                    st.download_button(
-                        label=f"Download {file_name}",
-                        data=file_content,
-                        file_name=file_name,
-                        mime=file_type.get(file_ext, 'application/octet-stream'),
-                        key="download_revised_resume"
-                    )
-    else:
-        st.toast("Failed to generate HR response.", icon=":material/error:")
+    display_result(response)
