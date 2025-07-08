@@ -1,5 +1,5 @@
 from user_profile import UserProfile
-from document_parser import get_parser_manager
+from utils.document_parser import get_parser_manager
 
 
 _parser = get_parser_manager()

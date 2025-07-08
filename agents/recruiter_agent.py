@@ -11,7 +11,7 @@ from semantic_kernel.functions import KernelArguments
 
 
 class RecruiterAgent(ChatCompletionAgent, BaseAgent):
-    """Agent to process resumes and generate match reports based on job descriptions."""
+    """Agent to analyse resumes and generate match reports based on job descriptions."""
     thread: AgentThread | None = None
 
     def __init__(self, name: str = "RecruiterAgent", kernel=None, instructions: str = "You are ResumeAgent — an experienced recruiter and HR specialist helping job seekers improve their resumes and career outcomes."):

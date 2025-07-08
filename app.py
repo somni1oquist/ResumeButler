@@ -2,7 +2,7 @@ import asyncio
 import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
 from agents.orchestrator_agent import OrchestratorAgent
-from semantic_kernel.agents import AgentGroupChat
+from semantic_kernel.contents import ChatHistory
 
 
 # Initialisation
@@ -34,39 +34,34 @@ def check_required() -> bool:
         passed = True
     return passed
 
-def display_result(response) -> None:
+def analyse_result(response) -> None:
     """Display the result of the agent's response."""
-    if response and isinstance(response, str):
-        st.session_state.messages.append({"role": "assistant", "content": str(response)})
-        st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(response)
-    elif isinstance(response, dict) and "tool_output" in response:
-        tool_output = response.get("tool_output")
-        if tool_output:
-            if isinstance(tool_output, str):
-                st.session_state.messages.append({"role": "assistant", "content": str(tool_output)})
-                st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(tool_output)
-
-            elif isinstance(tool_output, dict) and "content" in tool_output:
-                file_ext = tool_output.get("ext", "txt")
-                file_name = f"revised_resume-{random_str()}.{file_ext}"
-                file_content = tool_output.get("content")
-
-                if not file_content:
-                    st.toast("No content generated for the revised resume.", icon=":material/error:")
-                else:
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"Revised resume generated: {file_name}"
-                    })
-                    st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(f"Revised resume generated: {file_name}")
-                    st.download_button(
-                        label=f"{file_name}",
-                        icon=":material/download_2:",
-                        data=file_content,
-                        file_name=file_name,
-                        mime=file_type.get(file_ext, 'application/octet-stream'),
-                        key="download_revised_resume"
-                    )
+    # Update chat history with the response
+    st.session_state.chat_history = response.get("chat_history", st.session_state.chat_history)
+    result = response.get("result", None)
+    reason = response.get("reason", None)
+    if isinstance(result, str):
+        # Normal string response
+        st.session_state.messages.append({"role": "assistant", "content": str(result)})
+        st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(result)
+    elif isinstance(result, dict) and isinstance(result.get("content"), bytes) and isinstance(reason, str):
+        # File response
+        file_ext = result.get("extension", "txt")
+        file_name = f"{result.get('name', 'revision')}-{random_str()}.{file_ext}"
+        file_content = result.get("content", b"")
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": f"Revised resume generated: {file_name}"
+        })
+        st.chat_message("assistant", avatar=AGENT_AVATAR).markdown(f"Revised resume generated: {file_name}")
+        st.download_button(
+            label=file_name,
+            icon=":material/download_2:",
+            data=file_content,
+            file_name=file_name,
+            mime=file_type.get(file_ext, 'application/octet-stream'),
+            key="download_revised_resume"
+        )
     else:
         st.toast("Failed to generate HR response.", icon=":material/error:")
 
@@ -92,8 +87,8 @@ if "messages" not in st.session_state:
 
 if "agent" not in st.session_state:
     st.session_state.agent = asyncio.run(OrchestratorAgent.create())
-if "thread" not in st.session_state:
-    st.session_state.thread = None
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = ChatHistory()
 
 # Set the page configuration for the Streamlit app
 st.set_page_config(
@@ -143,10 +138,13 @@ if user_input and check_required():
     st.chat_message("user", avatar=USER_AVATAR).write(user_input)
 
     with st.spinner("Thinking...", width="stretch"):
-        profile = {
+        data = {
+            "user_input": user_input,
             "resume": resume_file,
             "jd": jd
         }
-        response = asyncio.run()
-
-    display_result(response)
+        response = asyncio.run(st.session_state.agent.process(
+            chat_history=st.session_state.chat_history,
+            **data
+        ))
+    analyse_result(response)
