@@ -40,7 +40,7 @@ input_variables:
     is_required: false
 
 output_variable:
-  - description: The revised resume content with improvements made.
+  description: The revised resume content with improvements made.
 
 execution_settings:
   azure_openai:

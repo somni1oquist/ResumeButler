@@ -1,7 +1,8 @@
 import asyncio
 import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
-from agents.recruiter_agent import RecruiterAgent
+from agents.orchestrator_agent import OrchestratorAgent
+from semantic_kernel.agents import AgentGroupChat
 
 
 # Initialisation
@@ -89,8 +90,10 @@ if "messages" not in st.session_state:
         "content": "G'day! I'm your Resume Butler. Let's get started by uploading your resume and entering the job description."
     }]
 
-if "recruiter_agent" not in st.session_state:
-    st.session_state.recruiter_agent = asyncio.run(RecruiterAgent.create())
+if "agent" not in st.session_state:
+    st.session_state.agent = asyncio.run(OrchestratorAgent.create())
+if "thread" not in st.session_state:
+    st.session_state.thread = None
 
 # Set the page configuration for the Streamlit app
 st.set_page_config(
@@ -140,10 +143,10 @@ if user_input and check_required():
     st.chat_message("user", avatar=USER_AVATAR).write(user_input)
 
     with st.spinner("Thinking...", width="stretch"):
-        response = asyncio.run(st.session_state.recruiter_agent.ask({
-            "user_input": user_input,
-            "resume_file": resume_file,
+        profile = {
+            "resume": resume_file,
             "jd": jd
-        }))
+        }
+        response = asyncio.run()
 
     display_result(response)

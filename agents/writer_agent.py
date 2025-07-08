@@ -1,4 +1,5 @@
 import os
+from typing import Any
 from datetime import datetime
 from kernel import get_kernel
 from utils import load_prompt
@@ -6,13 +7,14 @@ from . import BaseAgent
 from plugins import RevisionPlugin, get_tool_output
 from constants import ServiceIDs
 from user_profile import UserProfile
-from semantic_kernel.agents import ChatCompletionAgent
+from semantic_kernel.agents import ChatCompletionAgent, AgentThread
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
 
 
 class WriterAgent(ChatCompletionAgent, BaseAgent):
     """Agent to assist with writing tasks and content generation."""
+    thread: AgentThread | None = None
 
     def __init__(self, name: str = "WriterAgent", kernel=None, instructions: str = ""):
         super().__init__(name=name, kernel=kernel, instructions=instructions)
@@ -39,7 +41,7 @@ class WriterAgent(ChatCompletionAgent, BaseAgent):
 
         return cls(name=name, kernel=kernel, instructions=instruction)
 
-    async def process(self, prompt: str, **kwargs) -> dict | str:
+    async def process(self, prompt: str, thread: AgentThread | None, **kwargs) -> Any:
         """Process resume and job description to generate match report."""
         # Unpack additional arguments
         if "user_profile" in kwargs:
@@ -51,11 +53,14 @@ class WriterAgent(ChatCompletionAgent, BaseAgent):
                 self.instructions = new_instruction if new_instruction else self.instructions
 
         try:
-            response = await self.get_response(messages=prompt)
+            response = await self.get_response(messages=prompt, thread=thread)
             self.thread = response.thread
+
+            print("RecruiterAgent finished processing.")
+
             if get_tool_output(self.thread):
                 tool_output = get_tool_output(self.thread)
-                return {"tool_output": tool_output}
-            return str(response.message)
+                return {"tool_output": tool_output}, self.thread
+            return response, self.thread
         except Exception as e:
             raise ValueError(f"Error processing request: {e}")
