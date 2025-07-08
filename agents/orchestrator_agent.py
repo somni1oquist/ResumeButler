@@ -15,7 +15,7 @@ import re
 class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
     """Smart router that selects agents based on user input keywords."""
     model_config = ConfigDict(extra="allow")
-
+    max_rounds: int | None = 5
     current_round: int = 0
     recruiter_agent: RecruiterAgent | None = None
     writer_agent: WriterAgent | None = None
@@ -67,13 +67,35 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
         return instance
 
     async def should_request_user_input(self, chat_history: ChatHistory) -> BooleanResult:
+        # @TODO: Implement logic to determine if user input is required for routing decisions.
         return BooleanResult(result=False, reason="OrchestratorAgent does not require user input for routing decisions.")
 
     async def select_next_agent(self, chat_history: ChatHistory, participant_descriptions: dict[str, str]) -> StringResult:
         last_messages = chat_history.messages[-4:]
-        selected = await self.detect_intent(ChatHistory(last_messages))
-
-        return StringResult(result=str(selected), reason=f"{selected} selected based on user intent.")
+        response = await self.detect_intent(ChatHistory(last_messages))
+        match = re.search(r'service_id=([a-zA-Z0-9_]+)', str(response))
+        if match:
+            service_id = match.group(1)
+            if service_id == ServiceIDs.AZURE_HR_SERVICE:
+                # Recruiter service selected
+                if self.reach_limit().result:
+                    return StringResult(result="No more rounds allowed.", reason="Maximum rounds reached.")
+                if not self.recruiter_agent:
+                    self.recruiter_agent = await RecruiterAgent.create()
+                return StringResult(result=service_id, reason=f"{service_id} selected based on user intent.")
+            elif service_id == ServiceIDs.AZURE_WRITER_SERVICE:
+                # Writer service selected
+                if self.reach_limit().result:
+                    return StringResult(result="No more rounds allowed.", reason="Maximum rounds reached.")
+                if not self.writer_agent:
+                    self.writer_agent = await WriterAgent.create()
+                return StringResult(result=service_id, reason=f"{service_id} selected based on user intent.")
+            else:
+                # Invalid service_id detected
+                return StringResult(result="No valid service_id found.", reason="Invalid service_id detected in user intent.")
+        else:
+            # No service_id detected
+            return StringResult(result="No valid service_id found.", reason=f"No service_id detected in user intent: {response.content}")
 
     async def filter_results(
         self,
@@ -90,6 +112,13 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
                 role=AuthorRole.ASSISTANT,
                 content="Orchestrator will handle the response."
             ), reason="OrchestratorAgent does not filter results.")
+
+    def reach_limit(self) -> BooleanResult:
+        """Check if the maximum number of rounds has been reached."""
+        self.current_round += 1
+        if self.max_rounds and self.current_round >= self.max_rounds:
+            return BooleanResult(result=True, reason="Maximum rounds reached.")
+        return BooleanResult(result=False, reason="Rounds are within limit.")
 
     async def detect_intent(self, chat_history: ChatHistory):
         """Detect the intent of the user's message and route to the appropriate agent."""
@@ -123,14 +152,11 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
             chat_history.add_message(
                 ChatMessageContent(role=AuthorRole.USER, content=user_input)
             )
-        intent = await self.detect_intent(chat_history)
-        # Retrieve service_id from intent string e.g. service_id=az_hr_service
-        match = re.search(r'service_id=([a-zA-Z0-9_]+)', str(intent))
-        if match:
-            service_id = match.group(1)
-            print(f"routing to service_id: {service_id}")
+        selection = await self.select_next_agent(chat_history, kwargs.get("participant_descriptions", {}))
+        result = selection.result
+        reason = selection.reason
         return {
-            "result": intent,
-            "reason": "",
+            "result": result,
+            "reason": reason,
             "chat_history": chat_history,
         }
