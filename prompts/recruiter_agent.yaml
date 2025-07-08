@@ -26,6 +26,9 @@ template: |
   - If no job description is provided, still provide feedback and suggestions based on the resume.
   - If the user's request is unclear, ask clarifying questions.
 
+  === Further Interaction ===
+  - If the user asks for updating, editing or export their resume based on your suggestions, pass the request to the WriterAgent.
+
   Respond directly and professionally based on the above context.
 
 input_variables:

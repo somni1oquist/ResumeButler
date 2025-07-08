@@ -2,10 +2,10 @@ import os
 from datetime import datetime
 from kernel import get_kernel
 from utils import load_prompt
-from document_parser import get_parser_manager
 from . import BaseAgent
 from plugins import RevisionPlugin, get_tool_output
 from constants import ServiceIDs
+from user_profile import UserProfile
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
@@ -43,15 +43,18 @@ class WriterAgent(ChatCompletionAgent, BaseAgent):
         """Process resume and job description to generate match report."""
         # Unpack additional arguments
         if "user_profile" in kwargs:
-            user_profile = kwargs.get("user_profile")
-            new_instruction = await load_prompt("writer_agent", KernelArguments(now=datetime.now(), user_profile=user_profile))
-            self.instructions = new_instruction if new_instruction else self.instructions
+            user_profile: UserProfile | None = kwargs.get("user_profile")
+            if user_profile:
+                new_instruction = await load_prompt("writer_agent", KernelArguments(
+                    now=datetime.now(), resume=user_profile.resume, jd=user_profile.jd
+                ))
+                self.instructions = new_instruction if new_instruction else self.instructions
 
         try:
             response = await self.get_response(messages=prompt)
-            thread = response.thread
-            if get_tool_output(thread):
-                tool_output = get_tool_output(thread)
+            self.thread = response.thread
+            if get_tool_output(self.thread):
+                tool_output = get_tool_output(self.thread)
                 return {"tool_output": tool_output}
             return str(response.message)
         except Exception as e:

@@ -105,7 +105,7 @@ class RevisionPlugin:
             resume=resume,
             jd=jd
         )
-        prompt = await load_prompt("revise_resume", args)
+        prompt = await load_prompt("writer_agent", args)
         if not prompt:
             raise ValueError("Failed to load the revise resume prompt.")
         return prompt
