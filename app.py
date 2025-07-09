@@ -3,6 +3,8 @@ import streamlit as st
 from constants import SUPPORTED_RESUME_TYPES
 from agents.orchestrator_agent import OrchestratorAgent
 from semantic_kernel.contents import ChatHistory
+from semantic_kernel.agents import GroupChatOrchestration
+from semantic_kernel.agents.runtime import InProcessRuntime
 
 
 # Initialisation
@@ -34,7 +36,7 @@ def check_required() -> bool:
         passed = True
     return passed
 
-def analyse_result(response) -> None:
+async def analyse_result(response) -> None:
     """Display the result of the agent's response."""
     # Update chat history with the response
     st.session_state.chat_history = response.get("chat_history", st.session_state.chat_history)
@@ -64,6 +66,29 @@ def analyse_result(response) -> None:
         )
     else:
         st.toast("Failed to generate HR response.", icon=":material/error:")
+
+async def agent_callback(response):
+    """Async callback function to handle the response from the agent."""
+    print("Callback received response:", response)
+
+def run_group_chat(user_input: str):
+    """Run the group chat orchestration."""
+    runtime = InProcessRuntime()
+    async def runner():
+        runtime.start()
+        agents = st.session_state.agent.get_agents()
+        group_chat = GroupChatOrchestration(
+            manager=st.session_state.agent,
+            members=agents,
+            agent_response_callback=agent_callback
+        )
+        result = await group_chat.invoke(
+            task=user_input,
+            runtime=runtime,
+        )
+        await runtime.stop_when_idle()
+        return result
+    return asyncio.run(runner())
 
 def match_report() -> None:
     with st.spinner("Generating...", width="stretch"):
@@ -138,13 +163,11 @@ if user_input and check_required():
     st.chat_message("user", avatar=USER_AVATAR).write(user_input)
 
     with st.spinner("Thinking...", width="stretch"):
-        data = {
-            "user_input": user_input,
-            "resume": resume_file,
+        context = {
+            "resume_file": resume_file,
             "jd": jd
         }
-        response = asyncio.run(st.session_state.agent.process(
-            chat_history=st.session_state.chat_history,
-            **data
-        ))
-    analyse_result(response)
+        st.session_state.agent.set_context(context)
+        # Run the group chat orchestration
+        result = run_group_chat(user_input)
+        print("Group chat result:", result)

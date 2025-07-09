@@ -9,7 +9,7 @@ from user_profile import UserProfile
 
 
 class RecruiterPlugin:
-    """Plugin to handle resume processing and match report generation."""
+    """Plugin to analyse resumes and when job description is provided, generate match reports."""
 
     @kernel_function(name="get_match_report", description="Generate a match report between the resume and job description.")
     async def get_match_report(self, resume: str, jd: str | None = None) -> str:

@@ -1,10 +1,13 @@
 from typing import Any
 from abc import ABC, abstractmethod
+from user_profile import UserProfile
 from semantic_kernel.agents import Agent, AgentThread
 
 
 class BaseAgent(Agent, ABC):
     """Abstract base class for SK agents."""
+    _context: UserProfile = UserProfile()
+    _thread: AgentThread | None = None
 
     @classmethod
     @abstractmethod

@@ -1,24 +1,27 @@
-from semantic_kernel.agents import ChatCompletionAgent, GroupChatManager, StringResult, BooleanResult, MessageResult
-from semantic_kernel.contents import ChatHistory, ChatMessageContent, AuthorRole
+from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatManager, StringResult, BooleanResult, MessageResult
+from semantic_kernel.contents import ChatHistory, AuthorRole
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
 from pydantic import ConfigDict
 from typing import Any
+from plugins import RecruiterPlugin, RevisionPlugin
 from .recruiter_agent import RecruiterAgent
 from .writer_agent import WriterAgent
 from constants import ServiceIDs
 from kernel import get_kernel
-from utils import load_prompt
+from user_profile import UserProfile
+from utils import load_prompt, get_parser_manager
 import os
-import re
 
 class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
     """Smart router that selects agents based on user input keywords."""
     model_config = ConfigDict(extra="allow")
     max_rounds: int | None = 5
     current_round: int = 0
+    # @TODO: Gather agents dynamically based on the task
     recruiter_agent: RecruiterAgent | None = None
     writer_agent: WriterAgent | None = None
+    _context: dict[str, Any] = {}
 
     def __init__(self, kernel, name: str = "OrchestratorAgent", instructions: str = ""):
         ChatCompletionAgent.__init__(
@@ -64,99 +67,87 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
             instance.instructions = instructions
         instance.recruiter_agent = recruiter_agent
         instance.writer_agent = writer_agent
+        kernel.add_plugin(RecruiterPlugin(), plugin_name="RecruiterPlugin")
+        kernel.add_plugin(RevisionPlugin(), plugin_name="RevisionPlugin")
         return instance
 
     async def should_request_user_input(self, chat_history: ChatHistory) -> BooleanResult:
-        # @TODO: Implement logic to determine if user input is required for routing decisions.
-        return BooleanResult(result=False, reason="OrchestratorAgent does not require user input for routing decisions.")
+        last_msg = chat_history.messages[-1]
+        # @TODO: Implement logic to determine if user input is needed
+        if last_msg.role == AuthorRole.ASSISTANT:
+            return BooleanResult(result=True, reason="Waiting for user input after agent response.")
+        return BooleanResult(result=False, reason="Still processing or waiting for agent.")
 
     async def select_next_agent(self, chat_history: ChatHistory, participant_descriptions: dict[str, str]) -> StringResult:
-        last_messages = chat_history.messages[-4:]
-        response = await self.detect_intent(ChatHistory(last_messages))
-        match = re.search(r'service_id=([a-zA-Z0-9_]+)', str(response))
-        if match:
-            service_id = match.group(1)
-            if service_id == ServiceIDs.AZURE_HR_SERVICE:
-                # Recruiter service selected
-                if self.reach_limit().result:
-                    return StringResult(result="No more rounds allowed.", reason="Maximum rounds reached.")
-                if not self.recruiter_agent:
-                    self.recruiter_agent = await RecruiterAgent.create()
-                return StringResult(result=service_id, reason=f"{service_id} selected based on user intent.")
-            elif service_id == ServiceIDs.AZURE_WRITER_SERVICE:
-                # Writer service selected
-                if self.reach_limit().result:
-                    return StringResult(result="No more rounds allowed.", reason="Maximum rounds reached.")
-                if not self.writer_agent:
-                    self.writer_agent = await WriterAgent.create()
-                return StringResult(result=service_id, reason=f"{service_id} selected based on user intent.")
-            else:
-                # Invalid service_id detected
-                return StringResult(result="No valid service_id found.", reason="Invalid service_id detected in user intent.")
+        should_terminate = await self.should_terminate(chat_history=chat_history)
+        if should_terminate.result:
+            return StringResult(result="terminate", reason="Conversation is complete or task is finished.")
+
+        next_service = await self.detect_intent(chat_history)
+        if next_service == "terminate":
+            return StringResult(result="terminate", reason="Conversation is complete or task is finished.")
+
+        # Route to the appropriate agent based on detected intent
+        if next_service == ServiceIDs.AZURE_WRITER_SERVICE:
+            if not self.writer_agent:
+                self.writer_agent = await WriterAgent.create()
+            return StringResult(result=ServiceIDs.AZURE_WRITER_SERVICE, reason=f"{ServiceIDs.AZURE_WRITER_SERVICE} selected for resume revision.")
         else:
-            # No service_id detected
-            return StringResult(result="No valid service_id found.", reason=f"No service_id detected in user intent: {response.content}")
+            # Default to recruiter agent for resume analysis
+            if not self.recruiter_agent:
+                self.recruiter_agent = await RecruiterAgent.create()
+            return StringResult(result=ServiceIDs.AZURE_HR_SERVICE, reason=f"{ServiceIDs.AZURE_HR_SERVICE} selected for resume analysis.")
 
     async def filter_results(
         self,
         chat_history: ChatHistory,
     ) -> MessageResult:
-        """Filter the results of the group chat.
-
-        Args:
-            chat_history (ChatHistory): The chat history of the group chat.
-            participant_descriptions (dict[str, str]): The descriptions of the participants in the group chat.
-        """
-        return MessageResult(
-            result=ChatMessageContent(
-                role=AuthorRole.ASSISTANT,
-                content="Orchestrator will handle the response."
-            ), reason="OrchestratorAgent does not filter results.")
-
-    def reach_limit(self) -> BooleanResult:
-        """Check if the maximum number of rounds has been reached."""
-        self.current_round += 1
-        if self.max_rounds and self.current_round >= self.max_rounds:
-            return BooleanResult(result=True, reason="Maximum rounds reached.")
-        return BooleanResult(result=False, reason="Rounds are within limit.")
+        """Filter results to return the last assistant or tool output."""
+        for msg in reversed(chat_history.messages):
+            if msg.role in (AuthorRole.ASSISTANT, AuthorRole.TOOL):
+                return MessageResult(result=msg, reason="Returning last assistant or tool output.")
+        return MessageResult(result=chat_history.messages[-1], reason="Default last message used.")
 
     async def detect_intent(self, chat_history: ChatHistory):
         """Detect the intent of the user's message and route to the appropriate agent."""
         last_messages = chat_history.messages[-4:] if len(chat_history.messages) > 4 else chat_history.messages
-        messages = []
-        for message in last_messages:
-            if isinstance(message, (str, ChatMessageContent)):
-                messages.append(message)
-        history_str = "\n".join(
-            f"{msg.role.value}: {msg.content}" if isinstance(msg, ChatMessageContent) else str(msg)
-            for msg in messages
+        
+        history_str = "\n".join(f"{msg.role.value}: {msg.content}" for msg in last_messages if hasattr(msg, "content"))
+        prompt = (
+            f"{self.instructions}\n\n"
+            f"Conversation:\n{history_str}"
         )
-        instruction = f"{self.instructions}\n\nChat History:\n{history_str}\n\nUser Input: {messages[-1].content if messages else ''}"
-        if instruction:
-            self.instructions = instruction
-        intent = await self.get_response(messages=messages)
-        return intent
 
-    async def process(self, chat_history: ChatHistory, **kwargs) -> dict[str, Any]:
-        """Process the chat history and route to the appropriate agent."""
-        user_input = kwargs.get("user_input", "")
-        resume_file = kwargs.get("resume_file", None)
-        jd = kwargs.get("jd", None)
-        if not user_input:
-            return {
-                "result": "No user input provided.",
-                "reason": "User input is required to process the request."
-            }
-        if not chat_history or not chat_history.messages:
-            chat_history = ChatHistory()
-            chat_history.add_message(
-                ChatMessageContent(role=AuthorRole.USER, content=user_input)
-            )
-        selection = await self.select_next_agent(chat_history, kwargs.get("participant_descriptions", {}))
-        result = selection.result
-        reason = selection.reason
-        return {
-            "result": result,
-            "reason": reason,
-            "chat_history": chat_history,
-        }
+        intent = await self.kernel.invoke_prompt(prompt=prompt)
+        intent_str = str(intent).strip().lower()
+
+        if ServiceIDs.AZURE_HR_SERVICE in intent_str:
+            return ServiceIDs.AZURE_HR_SERVICE
+        elif ServiceIDs.AZURE_WRITER_SERVICE in intent_str:
+            return ServiceIDs.AZURE_WRITER_SERVICE
+        elif "terminate" in intent_str or "end" in intent_str:
+            return "terminate"
+        else:
+            # Fallback to default agent
+            return ServiceIDs.AZURE_HR_SERVICE
+        
+    def get_agents(self) -> list[Agent]:
+        """Return a list of agents available for routing."""
+        agents = []
+        if self.recruiter_agent:
+            agents.append(self.recruiter_agent)
+        if self.writer_agent:
+            agents.append(self.writer_agent)
+        return agents
+    
+    def set_context(self, context: dict[str, Any]) -> None:
+        """Set the context for the orchestrator agent."""
+        _parser = get_parser_manager()
+        user_profile = UserProfile(
+            resume=_parser.parse_document(context.get("resume_file", b"")),
+            jd=context.get("jd", None)
+        )
+        if self.writer_agent is not None:
+            self.writer_agent._context = user_profile
+        if self.recruiter_agent is not None:
+            self.recruiter_agent._context = user_profile
