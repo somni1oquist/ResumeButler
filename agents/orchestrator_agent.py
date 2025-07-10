@@ -1,4 +1,4 @@
-from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatManager, StringResult, BooleanResult, MessageResult
+from semantic_kernel.agents import Agent, ChatCompletionAgent, AgentThread, GroupChatManager, StringResult, BooleanResult, MessageResult
 from semantic_kernel.contents import ChatHistory, AuthorRole
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments
@@ -22,8 +22,10 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
     recruiter_agent: RecruiterAgent | None = None
     writer_agent: WriterAgent | None = None
     _context: dict[str, Any] = {}
+    _thread: AgentThread | None = None
 
-    def __init__(self, kernel, name: str = "OrchestratorAgent", instructions: str = ""):
+    def __init__(self, name: str = "OrchestratorAgent", instructions: str = ""):
+        kernel, _ = get_kernel()
         ChatCompletionAgent.__init__(
             self,
             kernel=kernel,
@@ -36,21 +38,22 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
         self.max_rounds = 3
 
         # Initialize Azure OpenAI service for orchestration processing
-        if not self.kernel.services.get(ServiceIDs.AZURE_ORCHESTRATOR_SERVICE):
+        if not kernel.services.get(ServiceIDs.AZURE_ORCHESTRATOR_SERVICE):
             az_orchestrator_service = AzureChatCompletion(
                 service_id=ServiceIDs.AZURE_ORCHESTRATOR_SERVICE,
                 deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
                 endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
                 api_key=os.getenv("AZURE_OPENAI_KEY")
             )
-            self.kernel.add_service(az_orchestrator_service)
+            kernel.add_service(az_orchestrator_service)
 
     @classmethod
     async def create(cls, name: str = "OrchestratorAgent"):
         """Async factory method to create OrchestratorAgent."""
         kernel, _ = get_kernel()
-        recruiter_agent = await RecruiterAgent.create()
-        writer_agent = await WriterAgent.create()
+        # Register recruiter and writer agents to the kernel
+        recruiter_agent = await RecruiterAgent.create(kernel=kernel)
+        writer_agent = await WriterAgent.create(kernel=kernel)
 
         instructions = await load_prompt("orchestrator_agent", KernelArguments(
             recruiter_name=recruiter_agent.name,
@@ -61,7 +64,7 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
             writer_instructions=writer_agent.instructions,
         ))
 
-        instance = cls(kernel=kernel, name=name)
+        instance = cls(name=name)
         # Attach variables to the instance after initialization
         if instructions:
             instance.instructions = instructions
@@ -69,6 +72,8 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
         instance.writer_agent = writer_agent
         kernel.add_plugin(RecruiterPlugin(), plugin_name="RecruiterPlugin")
         kernel.add_plugin(RevisionPlugin(), plugin_name="RevisionPlugin")
+        # Ensure the same kernel is set for the instance
+        instance.kernel = kernel
         return instance
 
     async def should_request_user_input(self, chat_history: ChatHistory) -> BooleanResult:
@@ -78,25 +83,25 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
             return BooleanResult(result=True, reason="Waiting for user input after agent response.")
         return BooleanResult(result=False, reason="Still processing or waiting for agent.")
 
+    async def should_terminate(self, chat_history: ChatHistory) -> BooleanResult:
+        """Determine if the conversation should be terminated."""
+        print("Checking if conversation should terminate...")
+        return BooleanResult(
+            result=False,
+            reason="Testing termination logic, always returning False."
+        )
+
     async def select_next_agent(self, chat_history: ChatHistory, participant_descriptions: dict[str, str]) -> StringResult:
         should_terminate = await self.should_terminate(chat_history=chat_history)
         if should_terminate.result:
-            return StringResult(result="terminate", reason="Conversation is complete or task is finished.")
+            return StringResult(result="terminate", reason="Max rounds or task complete.")
 
+        # Detect intent
         next_service = await self.detect_intent(chat_history)
         if next_service == "terminate":
-            return StringResult(result="terminate", reason="Conversation is complete or task is finished.")
+            return StringResult(result="terminate", reason="Intent detection says we're done.")
 
-        # Route to the appropriate agent based on detected intent
-        if next_service == ServiceIDs.AZURE_WRITER_SERVICE:
-            if not self.writer_agent:
-                self.writer_agent = await WriterAgent.create()
-            return StringResult(result=ServiceIDs.AZURE_WRITER_SERVICE, reason=f"{ServiceIDs.AZURE_WRITER_SERVICE} selected for resume revision.")
-        else:
-            # Default to recruiter agent for resume analysis
-            if not self.recruiter_agent:
-                self.recruiter_agent = await RecruiterAgent.create()
-            return StringResult(result=ServiceIDs.AZURE_HR_SERVICE, reason=f"{ServiceIDs.AZURE_HR_SERVICE} selected for resume analysis.")
+        return StringResult(result=next_service, reason=f"{next_service} selected based on intent.")
 
     async def filter_results(
         self,
@@ -121,15 +126,15 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
         intent = await self.kernel.invoke_prompt(prompt=prompt)
         intent_str = str(intent).strip().lower()
 
-        if ServiceIDs.AZURE_HR_SERVICE in intent_str:
-            return ServiceIDs.AZURE_HR_SERVICE
-        elif ServiceIDs.AZURE_WRITER_SERVICE in intent_str:
-            return ServiceIDs.AZURE_WRITER_SERVICE
+        if ServiceIDs.AZURE_HR_SERVICE in intent_str and self.recruiter_agent:
+            return self.recruiter_agent.name
+        elif ServiceIDs.AZURE_WRITER_SERVICE in intent_str and self.writer_agent:
+            return self.writer_agent.name
         elif "terminate" in intent_str or "end" in intent_str:
             return "terminate"
         else:
             # Fallback to default agent
-            return ServiceIDs.AZURE_HR_SERVICE
+            return self.recruiter_agent.name if self.recruiter_agent else "terminate"
         
     def get_agents(self) -> list[Agent]:
         """Return a list of agents available for routing."""
@@ -147,7 +152,8 @@ class OrchestratorAgent(ChatCompletionAgent, GroupChatManager):
             resume=_parser.parse_document(context.get("resume_file", b"")),
             jd=context.get("jd", None)
         )
-        if self.writer_agent is not None:
-            self.writer_agent._context = user_profile
-        if self.recruiter_agent is not None:
-            self.recruiter_agent._context = user_profile
+        for agent in self.get_agents():
+            agent.arguments = KernelArguments(
+                resume=user_profile.resume,
+                jd=user_profile.jd,
+            )

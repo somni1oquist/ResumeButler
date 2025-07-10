@@ -5,8 +5,11 @@ template: |
 
   You may be provided with the following:
 
-  - A user profile (additional context):
-    {{ $user_profile }}
+  - A user profile (user context):
+    - Resume:
+    {{ $resume }}
+    - Job Description (JD):
+    {{ $jd }}
 
   === Responsibilities ===
   Based on the optional user profile (resume and job description) or user's request, you will:
@@ -35,8 +38,11 @@ input_variables:
   - name: now
     description: The current date and time for context.
     is_required: true
-  - name: user_profile
-    description: The user's profile containing additional context.
+  - name: resume
+    description: The user's resume, which may be provided as a file or text.
+    is_required: true
+  - name: jd
+    description: The job description (JD) for the position the user is applying for.
     is_required: false
 
 execution_settings:

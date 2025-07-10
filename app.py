@@ -67,29 +67,6 @@ async def analyse_result(response) -> None:
     else:
         st.toast("Failed to generate HR response.", icon=":material/error:")
 
-async def agent_callback(response):
-    """Async callback function to handle the response from the agent."""
-    print("Callback received response:", response)
-
-def run_group_chat(user_input: str):
-    """Run the group chat orchestration."""
-    runtime = InProcessRuntime()
-    async def runner():
-        runtime.start()
-        agents = st.session_state.agent.get_agents()
-        group_chat = GroupChatOrchestration(
-            manager=st.session_state.agent,
-            members=agents,
-            agent_response_callback=agent_callback
-        )
-        result = await group_chat.invoke(
-            task=user_input,
-            runtime=runtime,
-        )
-        await runtime.stop_when_idle()
-        return result
-    return asyncio.run(runner())
-
 def match_report() -> None:
     with st.spinner("Generating...", width="stretch"):
         match_prompt = "Please provide a match report based on the uploaded resume and optional job description."
@@ -110,10 +87,32 @@ if "messages" not in st.session_state:
         "content": "G'day! I'm your Resume Butler. Let's get started by uploading your resume and entering the job description."
     }]
 
-if "agent" not in st.session_state:
-    st.session_state.agent = asyncio.run(OrchestratorAgent.create())
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = ChatHistory()
+
+async def run_group_chat(user_input: str, context: dict) -> None:
+    """Run the group chat orchestration."""
+    loop = asyncio.get_running_loop()
+    st.session_state.group_chat_future = loop.create_future()
+    runtime = InProcessRuntime()
+    runtime.start()
+    orchestrator = await OrchestratorAgent.create()
+    orchestrator.set_context(context)
+    agents = orchestrator.get_agents()
+    group_chat = GroupChatOrchestration(
+        manager=orchestrator,
+        members=agents
+    )
+    print("Before invoking group chat.")
+    result_future = await group_chat.invoke(
+        task=user_input,
+        runtime=runtime,
+    )
+    print("After invoking group chat.")
+    result = await result_future.get()
+    print("After getting result from group chat.")
+    await runtime.stop_when_idle()
+    print("After stopping runtime.")
 
 # Set the page configuration for the Streamlit app
 st.set_page_config(
@@ -167,7 +166,5 @@ if user_input and check_required():
             "resume_file": resume_file,
             "jd": jd
         }
-        st.session_state.agent.set_context(context)
         # Run the group chat orchestration
-        result = run_group_chat(user_input)
-        print("Group chat result:", result)
+        result = asyncio.run(run_group_chat(user_input, context))
